@@ -2508,6 +2508,7 @@ void initServer(void) {
     adjustOpenFilesLimit();
     const char *clk_msg = monotonicInit();
     serverLog(LL_NOTICE, "monotonic clock: %s", clk_msg);
+    // 创建事件循环框架
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     if (server.el == NULL) {
         serverLog(LL_WARNING,
@@ -2517,6 +2518,7 @@ void initServer(void) {
     }
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
+    // 开始监听网络端口
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
         listenToPort(server.port,&server.ipfd) == C_ERR) {
@@ -2552,11 +2554,16 @@ void initServer(void) {
 
     /* Create the Redis databases, and initialize other internal state. */
     for (j = 0; j < server.dbnum; j++) {
+        //创建全局 hash表
         server.db[j].dict = dictCreate(&dbDictType);
+        // 创建过期的 hash表
         server.db[j].expires = dictCreate(&dbExpiresDictType);
         server.db[j].expires_cursor = 0;
+        // 为执行blpop阻塞的key 创建的信息表
         server.db[j].blocking_keys = dictCreate(&keylistDictType);
+        // 为执行push的阻塞key创建的hash表
         server.db[j].ready_keys = dictCreate(&objectKeyPointerValueDictType);
+        // 执行watch multi 操作创建的监听key的信息表
         server.db[j].watched_keys = dictCreate(&keylistDictType);
         server.db[j].id = j;
         server.db[j].avg_ttl = 0;
@@ -2623,6 +2630,7 @@ void initServer(void) {
     server.repl_good_slaves_count = 0;
     server.last_sig_received = 0;
 
+    // 为server后台任务创建定时事件, 时间事件触发后的 回调函数: serverCron
     /* Create the timer callback, this is our way to process many background
      * operations incrementally, like clients timeout, eviction of unaccessed
      * expired keys and so forth. */
@@ -2631,6 +2639,7 @@ void initServer(void) {
         exit(1);
     }
 
+    // 为 每一个监听的 IP连接事件设置对应的处理函数.
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
     if (createSocketAcceptHandler(&server.ipfd, acceptTcpHandler) != C_OK) {
@@ -6887,6 +6896,7 @@ int main(int argc, char **argv) {
 #ifdef INIT_SETPROCTITLE_REPLACEMENT
     spt_init(argc, argv);
 #endif
+    // 设置时区
     setlocale(LC_COLLATE,"");
     tzset(); /* Populates 'timezone' global. */
     zmalloc_set_oom_handler(redisOutOfMemoryHandler);
@@ -6929,7 +6939,9 @@ int main(int argc, char **argv) {
      * in sentinel mode will have the effect of populating the sentinel
      * data structures with master nodes to monitor. */
     if (server.sentinel_mode) {
+       // 初始化哨兵配置
         initSentinelConfig();
+       // 初始化哨兵模式
         initSentinel();
     }
 
@@ -7050,6 +7062,7 @@ int main(int argc, char **argv) {
             j++;
         }
 
+        // 配置参数解析
         loadServerConfig(server.configfile, config_from_stdin, options);
         if (server.sentinel_mode) loadSentinelConfigFromQueue();
         sdsfree(options);
@@ -7153,7 +7166,9 @@ int main(int argc, char **argv) {
     redisSetCpuAffinity(server.server_cpulist);
     setOOMScoreAdj(-1);
 
+    // * 执行事件驱动框架
     aeMain(server.el);
+    // 程序结束后 释放 eventLoop
     aeDeleteEventLoop(server.el);
     return 0;
 }

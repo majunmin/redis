@@ -47,14 +47,14 @@ typedef struct quicklistNode {
     struct quicklistNode *prev;
     struct quicklistNode *next;
     unsigned char *entry;
-    size_t sz;             /* entry size in bytes */
-    unsigned int count : 16;     /* count of items in listpack */
-    unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
-    unsigned int container : 2;  /* PLAIN==1 or PACKED==2 */
-    unsigned int recompress : 1; /* was this node previous compressed? */
-    unsigned int attempted_compress : 1; /* node can't compress; too small */
+    size_t sz;             /* entry size in bytes */ // ziplist中字节大小.
+    unsigned int count : 16;     /* count of items in listpack */ // ziplist中元素个数.
+    unsigned int encoding : 2;   /* RAW==1 or LZF==2 */ //编码格式, 原生字节数组 or 压缩存储.
+    unsigned int container : 2;  /* PLAIN==1 or PACKED==2 */ // 存储方式.
+    unsigned int recompress : 1; /* was this node previous compressed? */  // 数据是否被压缩.
+    unsigned int attempted_compress : 1; /* node can't compress; too small */ // 数据能否被压缩.
     unsigned int dont_compress : 1; /* prevent compression of entry that will be used later */
-    unsigned int extra : 9; /* more bits to steal for future usage */
+    unsigned int extra : 9; /* more bits to steal for future usage */ // 预留的bit位.
 } quicklistNode;
 
 /* quicklistLZF is a 8+N byte struct holding 'sz' followed by 'compressed'.

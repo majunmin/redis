@@ -2474,14 +2474,17 @@ int rewriteAppendOnlyFileBackground(void) {
 
 void bgrewriteaofCommand(client *c) {
     if (server.child_type == CHILD_TYPE_AOF) {
+        // 1. aof 重写子进程正在执行..
         addReplyError(c,"Background append only file rewriting already in progress");
     } else if (hasActiveChildProcess() || server.in_exec) {
+        // 2. 已经存在 RDB子进程, 将aof重写子进程设置为 待调度..
         server.aof_rewrite_scheduled = 1;
         /* When manually triggering AOFRW we reset the count 
          * so that it can be executed immediately. */
         server.stat_aofrw_consecutive_failures = 0;
         addReplyStatus(c,"Background append only file rewriting scheduled");
     } else if (rewriteAppendOnlyFileBackground() == C_OK) {
+        //3. 实际执行 aof 重写    rewriteAppendOnlyFileBackground
         addReplyStatus(c,"Background append only file rewriting started");
     } else {
         addReplyError(c,"Can't execute an AOF background rewriting. "

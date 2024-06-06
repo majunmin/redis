@@ -598,9 +598,11 @@ int performEvictions(void) {
                  * every DB. */
                 for (i = 0; i < server.dbnum; i++) {
                     db = server.db+i;
+                    // 根据淘汰策略,选择 全局hahs表 还是设置了过期时间的hash表
                     dict = (server.maxmemory_policy & MAXMEMORY_FLAG_ALLKEYS) ?
                             db->dict : db->expires;
                     if ((keys = dictSize(dict)) != 0) {
+                        // 传入候选的 dict, 同时传入全局 hash表.
                         evictionPoolPopulate(i, dict, db->dict, pool);
                         total_keys += keys;
                     }
@@ -691,6 +693,7 @@ int performEvictions(void) {
             decrRefCount(keyobj);
             keys_freed++;
 
+            // 每删除16个key, 执行一次.
             if (keys_freed % 16 == 0) {
                 /* When the memory to free starts to be big enough, we may
                  * start spending so much time here that is impossible to
@@ -706,6 +709,7 @@ int performEvictions(void) {
                  * across the dbAsyncDelete() call, while the thread can
                  * release the memory all the time. */
                 if (server.lazyfree_lazy_eviction) {
+                    // 如果满足最大容量需求, 让已释放的内存 >= 待释放的内存,就可以退出了.
                     if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {
                         break;
                     }

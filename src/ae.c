@@ -155,6 +155,7 @@ void aeStop(aeEventLoop *eventLoop) {
     eventLoop->stop = 1;
 }
 
+// 事件和handler 的注册
 int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
         aeFileProc *proc, void *clientData)
 {
@@ -272,6 +273,7 @@ static int64_t usUntilEarliestTimer(aeEventLoop *eventLoop) {
     return (now >= earliest->when) ? 0 : earliest->when - now;
 }
 
+// 遍历链表 eventLoop.timeEventHead,
 /* Process time events */
 static int processTimeEvents(aeEventLoop *eventLoop) {
     int processed = 0;
@@ -319,11 +321,13 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
             continue;
         }
 
+        // 如果到了执行时间, 执行.
         if (te->when <= now) {
             int retval;
 
             id = te->id;
             te->refcount++;
+            // 调用注册的回调函数处理.
             retval = te->timeProc(eventLoop, id, te->clientData);
             te->refcount--;
             processed++;
@@ -339,6 +343,7 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
     return processed;
 }
 
+// 负责事件的捕获与分发
 /* Process every pending time event, then every pending file event
  * (that may be registered by time event callbacks just processed).
  * Without special flags the function sleeps until some file event
@@ -358,9 +363,11 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
 {
     int processed = 0, numevents;
 
+    // 1. 若没有事件处理,直接返回
     /* Nothing to do? return ASAP */
     if (!(flags & AE_TIME_EVENTS) && !(flags & AE_FILE_EVENTS)) return 0;
 
+    // 2. 如果 有 IO 或者紧急事件发生, 则开始处理
     /* Note that we want to call select() even if there are no
      * file events to process as long as we want to process time
      * events, in order to sleep until the next time event is ready
@@ -399,6 +406,7 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
         if (eventLoop->beforesleep != NULL && flags & AE_CALL_BEFORE_SLEEP)
             eventLoop->beforesleep(eventLoop);
 
+        // 2.1 aeApiPoll 用来捕获事件(multiplexing API),这里其实是依赖的操作系统提供的 IO多路复用机制
         /* Call the multiplexing API, will return only on timeout or when
          * some event fires. */
         numevents = aeApiPoll(eventLoop, tvp);
@@ -461,10 +469,12 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
             processed++;
         }
     }
+    // 3. 检测是否有时间事件, 有就调用 processTimeEvents 处理
     /* Check time events */
     if (flags & AE_TIME_EVENTS)
         processed += processTimeEvents(eventLoop);
 
+    // 4. 返回已经处理的事件 or 时间事件
     return processed; /* return the number of processed file/time events */
 }
 
@@ -490,6 +500,7 @@ int aeWait(int fd, int mask, long long milliseconds) {
     }
 }
 
+// 负责事件主循环
 void aeMain(aeEventLoop *eventLoop) {
     eventLoop->stop = 0;
     while (!eventLoop->stop) {

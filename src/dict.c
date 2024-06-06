@@ -210,6 +210,8 @@ int dictTryExpand(dict *d, unsigned long size) {
  * work it does would be unbound and the function may block for a long time. */
 int dictRehash(dict *d, int n) {
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
+    // dict_can_resize 在 updateDictResizePolicy() 中被更新.
+    // 当 aof 重写等高压力操作时, 不允许扩容.
     if (dict_can_resize == DICT_RESIZE_FORBID || !dictIsRehashing(d)) return 0;
     if (dict_can_resize == DICT_RESIZE_AVOID && 
         (DICTHT_SIZE(d->ht_size_exp[1]) / DICTHT_SIZE(d->ht_size_exp[0]) < dict_force_resize_ratio))
@@ -217,6 +219,8 @@ int dictRehash(dict *d, int n) {
         return 0;
     }
 
+    //主循环,
+    // 根据要拷贝的 bucket数量n,循环n次后停止数据迁移过程
     while(n-- && d->ht_used[0] != 0) {
         dictEntry *de, *nextde;
 
@@ -227,32 +231,45 @@ int dictRehash(dict *d, int n) {
             d->rehashidx++;
             if (--empty_visits == 0) return 1;
         }
+        // 获取 要迁移的 element
         de = d->ht_table[0][d->rehashidx];
+        // 如果指向的 hash 桶不为空
         /* Move all the keys in this bucket from the old to the new hash HT */
         while(de) {
             uint64_t h;
 
+            // 指向 下一个 element
             nextde = de->next;
             /* Get the index in the new hash table */
+            // 根据扩容后的 hash表ht[1] 的大小,计算 该element 在 扩容后的hash表的位置
             h = dictHashKey(d, de->key) & DICTHT_SIZE_MASK(d->ht_size_exp[1]);
+            // 将 该element添加到 扩容后的hash表ht[1]中
             de->next = d->ht_table[1][h];
             d->ht_table[1][h] = de;
             d->ht_used[0]--;
             d->ht_used[1]++;
+            // 指向下一个 element
             de = nextde;
         }
+        // 如果 当前 hash桶中已经没有 element了, 将该bucket置为null
         d->ht_table[0][d->rehashidx] = NULL;
+        // 指向下一个 hash桶
         d->rehashidx++;
     }
 
+    // 判断 ht[0]数据是否迁移完成
     /* Check if we already rehashed the whole table... */
     if (d->ht_used[0] == 0) {
+        // 释放 ht[0] 空间
         zfree(d->ht_table[0]);
         /* Copy the new ht onto the old one */
+        // 让 ht[0] 指向 ht[1],以便接收正常请求
         d->ht_table[0] = d->ht_table[1];
         d->ht_used[0] = d->ht_used[1];
         d->ht_size_exp[0] = d->ht_size_exp[1];
+        // 重置 ht[1].size = 0
         _dictReset(d, 1);
+        // 设置 全局 hash表 的 rehashidx = -1,rehash结束
         d->rehashidx = -1;
         return 0;
     }
@@ -409,20 +426,24 @@ static dictEntry *dictGenericDelete(dict *d, const void *key, int nofree) {
     if (dictSize(d) == 0) return NULL;
 
     if (dictIsRehashing(d)) _dictRehashStep(d);
+    // 计算 Key 的hash值
     h = dictHashKey(d, key);
 
     for (table = 0; table <= 1; table++) {
         idx = h & DICTHT_SIZE_MASK(d->ht_size_exp[table]);
-        he = d->ht_table[table][idx];
+        he = d->ht_table[table][idx]; // 获取key 所在的hahs桶中的第一个hash项
         prevHe = NULL;
         while(he) {
+            // 在hash桶中逐一遍历被删除的key是否存在.
             if (key==he->key || dictCompareKeys(d, key, he->key)) {
+                // 如果找见了 被删除的key， 那么将他从hash桶的链表中去除.
                 /* Unlink the element from the list */
                 if (prevHe)
                     prevHe->next = he->next;
                 else
                     d->ht_table[table][idx] = he->next;
                 if (!nofree) {
+                    // 如果要进行同步删除, 就释放 key & value 的内存空间.
                     dictFreeUnlinkedEntry(d, he);
                 }
                 d->ht_used[table]--;
@@ -1007,6 +1028,9 @@ static int _dictExpandIfNeeded(dict *d)
      * the number of buckets. */
     if (!dictTypeExpandAllowed(d))
         return DICT_OK;
+    // 如果  loadFactor > 1 || loadFactor > 5 (强制进行 rehash)
+    // fork子进程 如果正在进行 `copy-on-write` 时,  不想对内存进行操作. 此时会把  dict_can_resize 置为  DICT_RESIZE_FORBID(0)
+    // 如果 loadFactor > 5 就会进行强制扩容
     if ((dict_can_resize == DICT_RESIZE_ENABLE &&
          d->ht_used[0] >= DICTHT_SIZE(d->ht_size_exp[0])) ||
         (dict_can_resize != DICT_RESIZE_FORBID &&

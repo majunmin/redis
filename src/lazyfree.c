@@ -164,6 +164,7 @@ void freeObjAsync(robj *key, robj *obj, int dbid) {
      * objects, and then call dbDelete(). */
     if (free_effort > LAZYFREE_THRESHOLD && obj->refcount == 1) {
         atomicIncr(lazyfree_objects,1);
+        // 创建惰性删除的后台任务. 交给后台线程执行.
         bioCreateLazyFreeJob(lazyfreeFreeObject,1,obj);
     } else {
         decrRefCount(obj);

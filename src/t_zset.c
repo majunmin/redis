@@ -480,6 +480,7 @@ unsigned long zslGetRank(zskiplist *zsl, double score, sds ele) {
 
     x = zsl->header;
     for (i = zsl->level-1; i >= 0; i--) {
+        // 计算排名就是把  跳表遍历过程中经历的  span 累加起来
         while (x->level[i].forward &&
             (x->level[i].forward->score < score ||
                 (x->level[i].forward->score == score &&

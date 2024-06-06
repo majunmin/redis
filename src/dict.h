@@ -82,6 +82,7 @@ struct dict {
     dictEntry **ht_table[2];
     unsigned long ht_used[2];
 
+    // 当前 rehash 对哪个 bucket 做数据迁移,-1 表示没有在进行 rehash
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
 
     /* Keep small vars at end for optimal (minimal) struct padding */

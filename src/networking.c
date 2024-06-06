@@ -2039,7 +2039,9 @@ int handleClientsWithPendingWrites(void) {
     listNode *ln;
     int processed = listLength(server.clients_pending_write);
 
+    // 1. 获取待写回客户端列表
     listRewind(server.clients_pending_write,&li);
+    // 2. 遍历每一个待写回的客户端。
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
         c->flags &= ~CLIENT_PENDING_WRITE;
@@ -2052,9 +2054,11 @@ int handleClientsWithPendingWrites(void) {
         /* Don't write to clients that are going to be closed anyway. */
         if (c->flags & CLIENT_CLOSE_ASAP) continue;
 
+        // 3. 调用 writeToClient 将客户端输出缓冲区数据写回
         /* Try to write buffers to the client socket. */
         if (writeToClient(c,0) == C_ERR) continue;
 
+        // 4. 如果还有待写回数据, 
         /* If after the synchronous writes above we still have data to
          * output to the client, we need to install the writable handler. */
         if (clientHasPendingReplies(c)) {
