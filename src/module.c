@@ -10979,8 +10979,10 @@ dictType sdsKeyValueHashDictType = {
 
 void moduleInitModulesSystem(void) {
     moduleUnblockedClients = listCreate();
+    // 创建保存待加载模块列表
     server.loadmodule_queue = listCreate();
     server.module_configs_queue = dictCreate(&sdsKeyValueHashDictType);
+    // 创建 扩展模块 全局hash表.
     modules = dictCreate(&modulesDictType);
 
     /* Set up the keyspace notification subscriber list and static client */
@@ -10989,6 +10991,7 @@ void moduleInitModulesSystem(void) {
     /* Set up filter list */
     moduleCommandFilters = listCreate();
 
+    // 注册核心函数 API
     moduleRegisterCoreAPI();
 
     /* Create a pipe for module threads to be able to wake up the redis main thread.
@@ -11083,6 +11086,7 @@ void moduleLoadFromQueue(void) {
     listRewind(server.loadmodule_queue,&li);
     while((ln = listNext(&li))) {
         struct moduleLoadQueueEntry *loadmod = ln->value;
+        // 加载扩展模块.
         if (moduleLoad(loadmod->path,(void **)loadmod->argv,loadmod->argc, 0)
             == C_ERR)
         {
@@ -12486,10 +12490,12 @@ int RM_GetDbIdFromDefragCtx(RedisModuleDefragCtx *ctx) {
     return ctx->dbid;
 }
 
-/* Register all the APIs we export. Keep this function at the end of the
+/* register all the apis we export. keep this function at the end of the
  * file so that's easy to seek it to add new entries. */
 void moduleRegisterCoreAPI(void) {
+    // 注册对外暴露的api
     server.moduleapi = dictCreate(&moduleAPIDictType);
+    // 注册模块间共享的api
     server.sharedapi = dictCreate(&moduleAPIDictType);
     REGISTER_API(Alloc);
     REGISTER_API(TryAlloc);
